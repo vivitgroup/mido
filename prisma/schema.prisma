@@ -1,0 +1,421 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ACCOUNTANT
+  ACCOUNT_MANAGER
+  MEDIA_BUYER
+  CREATOR
+  SALES
+  CLIENT
+}
+
+enum CreativeType {
+  GRAPHIC
+  CAROUSEL
+  MOTION_GRAPHIC
+  VIDEO_EDIT
+  PHOTO_SESSION
+  REEL
+  STORY
+  UGC
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  REVIEW
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum PipelineStage {
+  NEW_LEAD
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum ExpenseCategory {
+  MODELS
+  PHOTOGRAPHY
+  PRODUCTION
+  FREELANCERS
+  OTHER
+  SALARIES
+  RENT
+  SUBSCRIPTIONS
+  INTERNET_TELECOM
+  BUFFET_CLEANING
+  MISCELLANEOUS
+}
+
+enum ExpenseType {
+  CLIENT
+  COMPANY
+}
+
+enum NotificationType {
+  ASSIGNMENT
+  APPROVAL_REQUEST
+  REVISION
+  LOW_BUDGET
+  DEADLINE
+  SYSTEM
+}
+
+enum RevisionCategory {
+  VISUAL_DESIGN
+  TOV
+  IDEA
+  EDITING
+  LIGHTING
+  EFFECTS
+  MUSIC
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          Role      @default(CLIENT)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  assignedClients     Client[]       @relation("AccountManagerClients")
+  createdTasks        CreativeTask[] @relation("TaskCreator")
+  assignedTasks       CreativeTask[] @relation("TaskAssignee")
+  submissions         Submission[]
+  approvals           Approval[]
+  salesLeads          SalesLead[]    @relation("LeadOwner")
+  notifications       Notification[] @relation("NotificationRecipient")
+  auditLogs           AuditLog[]
+  financeRecords      FinanceRecord[]
+  accounts            Account[]
+  sessions            Session[]
+
+  @@map("users")
+}
+
+model Client {
+  id              String   @id @default(cuid())
+  name            String
+  companyName     String
+  email           String?
+  phone           String?
+  industry        String?
+  website         String?
+  address         String?
+  monthlyRetainer Decimal? @db.Decimal(10, 2)
+  mediaBudget     Decimal? @db.Decimal(10, 2)
+  contractValue   Decimal? @db.Decimal(10, 2)
+  startDate       DateTime?
+  endDate         DateTime?
+  status          String   @default("active")
+  notes           String?
+  colorPalette    String?
+  fonts           String?
+  brandGuidelines String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  accountManagers User[]         @relation("AccountManagerClients")
+  contacts        Contact[]
+  mediaMetrics    MediaMetric[]
+  kpiRecords      KPIRecord[]
+  creativeTasks   CreativeTask[]
+  salesLeads      SalesLead[]
+  financeRecords  FinanceRecord[]
+  expenses        Expense[]      @relation("ClientExpenses")
+  files           File[]
+  calendarEvents  CalendarEvent[]
+
+  @@map("clients")
+}
+
+model Contact {
+  id        String  @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  position  String?
+  isPrimary Boolean @default(false)
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("contacts")
+}
+
+model MediaMetric {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  metaAdsLink     String?
+  tiktokAdsLink   String?
+  snapchatAdsLink String?
+  googleAdsLink   String?
+  adSpend         Decimal  @db.Decimal(10, 2)
+  leads           Int      @default(0)
+  purchases       Int      @default(0)
+  addToCart       Int      @default(0)
+  revenue         Decimal  @db.Decimal(10, 2)
+  roas            Decimal? @db.Decimal(10, 2)
+  cpl             Decimal? @db.Decimal(10, 2)
+  cpa             Decimal? @db.Decimal(10, 2)
+  agencyFee       Decimal? @db.Decimal(10, 2)
+  totalDue        Decimal? @db.Decimal(10, 2)
+  remainingBudget Decimal? @db.Decimal(10, 2)
+  date            DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("media_metrics")
+}
+
+model KPIRecord {
+  id         String   @id @default(cuid())
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  targetKPI  Decimal  @db.Decimal(10, 2)
+  actualKPI  Decimal  @db.Decimal(10, 2)
+  difference Decimal? @db.Decimal(10, 2)
+  projection Decimal? @db.Decimal(10, 2)
+  metricType String
+  period     String
+  date       DateTime
+  createdAt  DateTime @default(now())
+
+  @@map("kpi_records")
+}
+
+model CreativeTask {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  brief       String?
+  tov         String?
+  references  String?
+  script      String?
+  type        CreativeType
+  status      TaskStatus   @default(PENDING)
+  priority    Priority     @default(MEDIUM)
+  deadline    DateTime?
+  completedAt DateTime?
+  clientId    String
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  creatorId   String?
+  creator     User?        @relation("TaskAssignee", fields: [creatorId], references: [id])
+  createdById String
+  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
+  submissions Submission[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("creative_tasks")
+}
+
+model Submission {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      CreativeTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  creatorId String
+  creator   User     @relation(fields: [creatorId], references: [id])
+  fileUrl   String?
+  fileName  String?
+  comment   String?
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  approvals Approval[]
+
+  @@map("submissions")
+}
+
+model Approval {
+  id               String            @id @default(cuid())
+  submissionId     String
+  submission       Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  clientId         String
+  client           User              @relation(fields: [clientId], references: [id])
+  status           String
+  comment          String?
+  revisionCategory RevisionCategory?
+  createdAt        DateTime          @default(now())
+
+  @@map("approvals")
+}
+
+model SalesLead {
+  id            String        @id @default(cuid())
+  company       String
+  contactPerson String?
+  phone         String?
+  email         String?
+  source        String?
+  estimatedValue Decimal?     @db.Decimal(10, 2)
+  probability   Int?          @default(0)
+  stage         PipelineStage @default(NEW_LEAD)
+  notes         String?
+  strategyFile  String?
+  clientId      String?
+  client        Client?       @relation(fields: [clientId], references: [id])
+  ownerId       String?
+  owner         User?          @relation("LeadOwner", fields: [ownerId], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("sales_leads")
+}
+
+model FinanceRecord {
+  id          String   @id @default(cuid())
+  type        String
+  category    String
+  amount      Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  description String?
+  date        DateTime
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("finance_records")
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  type        ExpenseType
+  category    ExpenseCategory
+  amount      Decimal         @db.Decimal(10, 2)
+  description String?
+  date        DateTime
+  clientId    String?
+  client      Client?         @relation("ClientExpenses", fields: [clientId], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("expenses")
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime?
+  isPosted    Boolean  @default(false)
+  caption     String?
+  platform    String?
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("calendar_events")
+}
+
+model File {
+  id       String   @id @default(cuid())
+  name     String
+  url      String
+  type     String
+  size     Int?
+  clientId String
+  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("files")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String?
+  isRead    Boolean          @default(false)
+  link      String?
+  userId    String
+  user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String?
+  oldValue   String?
+  newValue   String?
+  ipAddress  String?
+  userAgent  String?
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
